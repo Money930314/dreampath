@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DreamPath — 你的專屬目標拆解師 (V2.3)</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#667eea">
+  <style>
+    :root{ --bg:#0f172a; --panel:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --border:rgba(148,163,184,.18); --primary:#667eea; --accent:#764ba2; --ring:rgba(102,126,234,.35) }
+    *{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Noto Sans TC",Arial}
+    a{color:#c7d2fe; text-decoration:none}
+    .shell{max-width:1100px; margin:0 auto; padding:20px 16px 60px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0}
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:grid; place-items:center; font-weight:800; color:white}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .btn{appearance:none; border:1px solid var(--border); background:#0b1220; color:#e5e7eb; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600}
+    .btn.primary{background:linear-gradient(135deg,var(--primary),var(--accent)); border:0}
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .section-title{font-size:14px; letter-spacing:.6px; text-transform:uppercase; color:#a3b3c7; margin:8px 0 10px}
+    .kpi{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+    .tile{padding:14px; border-radius:14px; background:#0b1220; border:1px solid var(--border)}
+    .tile h3{margin:2px 0 8px; font-size:12px; color:#a3b3c7; letter-spacing:.6px; text-transform:uppercase}
+    .tile .v{font-size:22px; font-weight:800}
+    .list{display:grid; gap:10px}
+    .task{display:flex; gap:12px; padding:12px; border:1px solid var(--border); border-radius:12px; background:#0b1220}
+    .chip{display:inline-block; padding:6px 10px; border:1px solid var(--border); background:#0b1220; border-radius:10px; font-size:12px}
+    .divider{height:1px; background:linear-gradient(90deg,transparent,rgba(148,163,184,.25),transparent); margin:12px 0}
+    .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; place-items:center; z-index:50}
+    .modal{width:min(560px,92vw); background:#0b1220; border:1px solid var(--border); border-radius:16px; padding:18px}
+    label{display:block; font-size:12px; color:#a3b3c7; margin-bottom:6px} input,select,textarea{width:100%; padding:10px 12px; border-radius:12px; background:#0b1220; color:#e5e7eb; border:1px solid var(--border)}
+    input:focus,textarea:focus{border-color:var(--ring); box-shadow:0 0 0 4px rgba(102,126,234,.15)}
+    .footer{margin-top:20px; font-size:12px; color:#94a3b8; text-align:center}
+    .toast{position:fixed; bottom:16px; right:16px; background:#111827; padding:12px 14px; border-radius:12px; border:1px solid rgba(148,163,184,.25); display:none}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">DP</div>
+        <div>
+          <div style="font-weight:700">DreamPath — 你的專屬目標拆解師</div>
+          <div style="font-size:12px;color:#94a3b8">把理想拆成可執行的任務，追蹤完成率。</div>
+        </div>
+      </div>
+      <div class="row">
+        <button id="installBtn" class="btn">安裝 App</button>
+        <a class="btn" href="templates.html">模板庫</a>
+        <button class="btn primary" onclick="openGoal()">+ 新目標</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="section-title">儀表板</div>
+      <div class="kpi">
+        <div class="tile"><h3>本週完成率</h3><div class="v" id="kpiWeekly">0%</div></div>
+        <div class="tile"><h3>今日任務</h3><div class="v" id="kpiToday">0</div></div>
+        <div class="tile"><h3>剩餘天數</h3><div class="v" id="kpiDays">—</div></div>
+        <div class="tile"><h3>成就點</h3><div class="v" id="kpiPoints">0</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="row"><span class="chip" id="todayTag"></span><button class="btn" onclick="recalc()">重算</button></div>
+      <div id="todayList" class="list"></div>
+    </section>
+
+    <section class="card" style="margin-top:14px">
+      <div class="row" style="justify-content:space-between">
+        <div class="section-title">⏱️ 專注計時</div>
+        <div class="row">
+          <label style="margin:0">工作</label>
+          <select id="workLen"><option value="25">25</option><option value="50">50</option></select>
+          <label style="margin:0">休息</label>
+          <select id="restLen"><option value="5">5</option><option value="10">10</option></select>
+          <button class="btn" onclick="startFocus()">開始</button>
+          <button class="btn" onclick="stopFocus()">停止</button>
+          <button class="btn" onclick="resetFocus()">重設</button>
+        </div>
+      </div>
+      <div class="row" style="gap:16px; margin-top:10px">
+        <div class="tile" style="min-width:180px"><h3>倒數</h3><div class="v" id="focusClock">00:00</div><div style="font-size:12px;color:#94a3b8" id="focusPhase">尚未開始</div></div>
+        <div class="tile" style="min-width:180px"><h3>今日番茄</h3><div class="v" id="focusCount">0</div><div style="font-size:12px;color:#94a3b8">完成 1 輪 +1</div></div>
+      </div>
+    </section>
+
+    <div class="footer">離線可用 · 本機儲存</div>
+  </div>
+
+  <!-- 新目標 Modal -->
+  <div id="goalModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between">
+        <h3 style="margin:0">建立新目標</h3>
+        <button class="btn" onclick="closeGoal()">關閉</button>
+      </div>
+      <div class="divider"></div>
+      <div class="row" style="gap:12px; flex-wrap:wrap">
+        <div style="flex:1 1 260px">
+          <label>目標名稱</label><input id="goalTitle" placeholder="例如：六個月內考多益860">
+        </div>
+        <div style="flex:1 1 180px">
+          <label>截止日</label><input type="date" id="goalDeadline">
+        </div>
+        <div style="flex:1 1 140px">
+          <label>每週投入時數</label><input type="number" id="goalHours" value="6" min="1">
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label>說明（可留空）</label><textarea id="goalNotes" rows="3"></textarea>
+      </div>
+      <div class="row" style="justify-content:flex-end; margin-top:12px">
+        <button class="btn primary" onclick="saveGoal()">建立</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+  // ====== 共用存取 ======
+  const $ = (id)=>document.getElementById(id);
+  const todayISO = ()=> new Date().toISOString().slice(0,10);
+  const load = (k, fallback)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? fallback }catch(e){ return fallback }};
+  const save = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+  const uid = ()=> (crypto.randomUUID ? crypto.randomUUID() : Date.now()+"-"+Math.random().toString(16).slice(2));
+  function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',1800); }
+
+  // state
+  let state = load('dreampath', {goals:[], tasks:[], points:0, activeGoalId:null});
+  if(!Array.isArray(state.tasks)) state.tasks=[];
+
+  // ====== Modal ======
+  function openGoal(){ $('goalModal').style.display='grid'; }
+  function closeGoal(){ $('goalModal').style.display='none'; }
+
+  // ====== 任務生成：穩定 Fallback 版 ======
+  function generateTasksFor(goal){
+    const out = [];
+    // 基礎：四週里程碑 + 每週 2 個工作
+    for(let w=1; w<=4; w++){
+      const d = new Date(); d.setDate(d.getDate()+w*7);
+      out.push({id:uid(), goal_id:goal.id, title:`週里程碑 ${w}/4：${goal.title}`, type:'milestone', estimate_min:90, due_date:d.toISOString().slice(0,10), status:'pending'});
+      const d1 = new Date(); d1.setDate(d1.getDate()+w*7-5);
+      const d2 = new Date(); d2.setDate(d2.getDate()+w*7-2);
+      out.push({id:uid(), goal_id:goal.id, title:`核心練習（週${w}）`, type:'practice', estimate_min:60, due_date:d1.toISOString().slice(0,10), status:'pending'});
+      out.push({id:uid(), goal_id:goal.id, title:`回顧/測驗（週${w}）`, type:'review', estimate_min:30, due_date:d2.toISOString().slice(0,10), status:'pending'});
+    }
+    // 今日先給 1 件，避免「今天清單空白」
+    out.push({id:uid(), goal_id:goal.id, title:`啟動：為「${goal.title}」做 15 分鐘`, type:'start', estimate_min:15, due_date:todayISO(), status:'pending'});
+    return out;
+  }
+
+  function saveGoal(){
+    const title = $('goalTitle').value.trim();
+    const deadline = $('goalDeadline').value;
+    const hours = parseInt($('goalHours').value||'6',10);
+    const notes = $('goalNotes').value.trim();
+    if(!title){ toast('請輸入目標名稱'); return; }
+    // deadline 可留空；若空，預設 +30 天，避免後續計算出錯
+    const dl = deadline || (()=>{ const d=new Date(); d.setDate(d.getDate()+30); return d.toISOString().slice(0,10); })();
+    const goal = {id:uid(), title, deadline:dl, weekly_hours:hours, status:'active', progress:0, notes, created_at:new Date().toISOString()};
+    const tasks = generateTasksFor(goal);
+    state.goals.push(goal);
+    state.tasks = state.tasks.concat(tasks);
+    state.activeGoalId = goal.id;
+    save('dreampath', state);
+    toast(`已建立「${title}」，產生 ${tasks.length} 項任務`);
+    closeGoal();
+    render();
+  }
+
+  // ====== Dashboard 渲染 ======
+  function render(){
+    $('todayTag').textContent = todayISO();
+    const today = todayISO();
+    const todayTasks = state.tasks.filter(t=>t.due_date===today && t.status!=='done');
+    $('kpiToday').textContent = todayTasks.length;
+    $('kpiWeekly').textContent = calcWeeklyRate()+"%";
+    $('kpiPoints').textContent = state.points||0;
+    $('kpiDays').textContent = calcDaysLeft();
+    $('todayList').innerHTML = todayTasks.map(t=>`
+      <div class="task">
+        <input type="checkbox" ${t.status==='done'?'checked':''} onclick="toggleDone('${t.id}')">
+        <div style="flex:1"><div style="font-weight:600">${t.title}</div><div style="font-size:12px;color:#94a3b8">${t.type||''}</div></div>
+        <button class="btn" onclick="delTask('${t.id}')">刪除</button>
+      </div>`).join('') || `<div class="card" style="border-style:dashed">今天還沒有任務，去 <a href='templates.html'>模板庫</a> 建一個吧！</div>`;
+  }
+  function toggleDone(id){
+    const t = state.tasks.find(x=>x.id===id); if(!t) return;
+    t.status = (t.status==='done'?'pending':'done'); if(t.status==='done') state.points=(state.points||0)+1;
+    save('dreampath', state); render();
+  }
+  function delTask(id){ state.tasks = state.tasks.filter(x=>x.id!==id); save('dreampath', state); render(); }
+  function calcWeeklyRate(){
+    const now=new Date(); const weekStart=new Date(now); weekStart.setDate(now.getDate()-now.getDay());
+    const weekEnd=new Date(weekStart); weekEnd.setDate(weekStart.getDate()+7);
+    const inRange = state.tasks.filter(t=>{ const d=new Date(t.due_date||0); return d>=weekStart && d<weekEnd; });
+    if(!inRange.length) return 0; const done=inRange.filter(t=>t.status==='done').length; return Math.round(done/inRange.length*100);
+  }
+  function calcDaysLeft(){
+    const g = state.goals.find(x=>x.id===state.activeGoalId);
+    if(!g||!g.deadline) return '—'; const dl=new Date(g.deadline); const today=new Date(todayISO()); return Math.max(0, Math.ceil((dl-today)/86400000));
+  }
+  function recalc(){ render(); }
+
+  // ====== 專注計時（單 interval，防重複） ======
+  let timer=null, phase='idle', remain=0, rounds=0;
+  function fmt(s){ const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+  function updateTimerUI(){ $('focusClock').textContent=fmt(remain); $('focusPhase').textContent=(phase==='work'?'專注中':phase==='rest'?'休息中':'尚未開始'); $('focusCount').textContent=rounds; }
+  function tick(){
+    if(remain>0){ remain--; updateTimerUI(); return; }
+    if(phase==='work'){ rounds++; phase='rest'; remain=(+$('restLen').value)*60; }
+    else if(phase==='rest'){ phase='work'; remain=(+$('workLen').value)*60; }
+    updateTimerUI();
+  }
+  function startFocus(){ if(timer){clearInterval(timer); timer=null;} if(phase==='idle'){phase='work'; remain=(+$('workLen').value)*60;} timer=setInterval(tick,1000); updateTimerUI(); }
+  function stopFocus(){ if(timer){clearInterval(timer); timer=null;} updateTimerUI(); }
+  function resetFocus(){ stopFocus(); phase='idle'; remain=0; updateTimerUI(); }
+
+  // ====== PWA & 初始 ======
+  let deferredPrompt=null;
+  window.addEventListener('beforeinstallprompt',(e)=>{e.preventDefault(); deferredPrompt=e; document.getElementById('installBtn').disabled=false;});
+  document.getElementById('installBtn').addEventListener('click', async()=>{ if(!deferredPrompt){alert('此瀏覽器不可安裝'); return;} deferredPrompt.prompt(); deferredPrompt=null; });
+  window.addEventListener('load', ()=>{ if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js'); } render(); });
+  </script>
+</body>
+</html>

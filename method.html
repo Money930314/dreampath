@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>方法導讀 — DreamPath</title>
+  <style>
+    :root{ --bg:#0f172a; --panel:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --border:rgba(148,163,184,.18); --primary:#667eea; --accent:#764ba2; --ring:rgba(102,126,234,.35) }
+    *{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Noto Sans TC",Arial}
+    a{color:#c7d2fe; text-decoration:none}
+    .shell{max-width:1100px; margin:0 auto; padding:20px 16px 60px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0}
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:grid; place-items:center; font-weight:800; color:white}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .btn{appearance:none; border:1px solid var(--border); background:#0b1220; color:#e5e7eb; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600}
+    .btn.primary{background:linear-gradient(135deg,var(--primary),var(--accent)); border:0}
+    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:12px}
+    .col-7{grid-column:span 7} .col-5{grid-column:span 5}
+    @media (max-width: 900px){ .col-7,.col-5{grid-column:1/-1} }
+    label{display:block; font-size:12px; color:#a3b3c7; margin-bottom:6px}
+    input,textarea,select{width:100%; padding:10px 12px; border-radius:12px; background:#0b1220; color:#e5e7eb; border:1px solid var(--border)}
+    input:focus,textarea:focus{border-color:var(--ring); box-shadow:0 0 0 4px rgba(102,126,234,.15)}
+    .muted{color:#94a3b8}
+    canvas{width:100%; height:180px; background:#0b1220; border:1px solid var(--border); border-radius:12px}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">DP</div>
+        <div>
+          <div style="font-weight:700" id="methodTitle">方法導讀</div>
+          <div class="muted" id="methodDesc" style="font-size:12px"></div>
+        </div>
+      </div>
+      <div class="row"><a class="btn" href="templates.html">← 回模板庫</a> <a class="btn" href="index.html">回 Dashboard</a></div>
+    </header>
+
+    <!-- 方法簡介 -->
+    <section class="card" id="intro"></section>
+
+    <div class="grid" style="margin-top:12px">
+      <!-- 視覺化 Dashboard -->
+      <section class="card col-7">
+        <div style="font-weight:700; margin-bottom:6px">📊 專屬 Dashboard</div>
+        <div class="muted" style="font-size:12px; margin-bottom:8px">指標會根據你填寫的引導問題與任務進度即時變化。</div>
+        <div style="display:grid; grid-template-columns:1fr; gap:10px">
+          <canvas id="chart1"></canvas>
+          <canvas id="chart2"></canvas>
+        </div>
+      </section>
+
+      <!-- 引導問答表單 -->
+      <section class="card col-5">
+        <div style="font-weight:700; margin-bottom:6px">🧭 引導問題</div>
+        <form id="guideForm" class="list"></form>
+        <div style="display:flex; gap:10px; justify-content:flex-end">
+          <button class="btn" onclick="previewPlan(event)">預覽計畫</button>
+          <button class="btn primary" onclick="createPlan(event)">一鍵建立計畫</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+// ===== 工具 =====
+const qs = (k)=> new URL(location.href).searchParams.get(k);
+const uid = ()=> (crypto.randomUUID ? crypto.randomUUID() : Date.now()+"-"+Math.random().toString(16).slice(2));
+const todayISO = ()=> new Date().toISOString().slice(0,10);
+const load = (k, f)=>{ try{return JSON.parse(localStorage.getItem(k)) ?? f}catch(e){return f} };
+const save = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+let state = load('dreampath', {goals:[], tasks:[], points:0, activeGoalId:null});
+if(!Array.isArray(state.tasks)) state.tasks=[];
+
+// ===== 方法定義（19 種） =====
+const METHODS = {
+  smart:{name:'SMART 目標', desc:'Specific/Measurable/Achievable/Relevant/Time-bound',
+    intro:['把願望改寫為可量測、可驗收的明確目標','以 S/M/A/R/T 五指標自我檢核'],
+    questions:[
+      {k:'specific', l:'你的目標具體是什麼？(S)'},
+      {k:'measurable', l:'你如何衡量自己達成了？(M)'},
+      {k:'achievable', l:'以你目前資源，這可行嗎？(A)'},
+      {k:'relevant', l:'為何此目標對你重要？(R)'},
+      {k:'time', l:'你希望在什麼時間達成？(T)'}
+    ],
+    makeTasks:(g,v)=>{
+      const out=[]; for(let i=1;i<=4;i++){ const d=new Date(); d.setDate(d.getDate()+i*7);
+        out.push({id:uid(),goal_id:g.id,title:`SMART 週檢核 ${i}/4`,type:'milestone',estimate_min:45,due_date:d.toISOString().slice(0,10),status:'pending'}); }
+      out.push({id:uid(),goal_id:g.id,title:`啟動：撰寫 SMART 說明（${v.measurable||'定義指標'}）`,type:'start',estimate_min:20,due_date:todayISO(),status:'pending'});
+      return out;
+    },
+    charts:(ctx1,ctx2)=>{ ring(ctx1, 68, 'SMART 完整度'); spark(ctx2,[20,40,55,68,70,76,82], '進度趨勢'); }
+  },
+  pomodoro:{name:'番茄工作法', desc:'25/50 分專注 + 短休',
+    intro:['以短回合降低啟動成本','每完成一個番茄立即回饋'],
+    questions:[{k:'target',l:'今天要專注完成的任務？'},{k:'rounds',l:'需要幾個番茄？(數字)'}],
+    makeTasks:(g,v)=>{ const n=Math.max(1,parseInt(v.rounds||'4',10)); const out=[]; for(let i=1;i<=n;i++) out.push({id:uid(),goal_id:g.id,title:`番茄 ${i}/${n}：${v.target||'重點任務'}`,type:'pomodoro',estimate_min:25,due_date:todayISO(),status:'pending'}); return out;},
+    charts:(ctx1,ctx2)=>{ ring(ctx1, 2, '今日番茄'); bars(ctx2,[1,3,2,4,5,3,2],'近 7 日番茄'); }
+  },
+  zeigarnik:{name:'Zeigarnik 效應', desc:'未完成的事，更抓心神',
+    intro:['只需啟動第一步，降低心智負荷','建立開放迴路清單以持續推進'],
+    questions:[{k:'first',l:'只需開始的第一個最小步驟是？'},{k:'next',l:'下一個接續步驟是？'}],
+    makeTasks:(g,v)=>[{id:uid(),goal_id:g.id,title:`先啟動：${v.first||'第一步'}`,type:'start',estimate_min:15,due_date:todayISO(),status:'pending'},{id:uid(),goal_id:g.id,title:`接續：${v.next||'下一步'}`,type:'follow',estimate_min:20,due_date:todayISO(),status:'pending'}],
+    charts:(c1,c2)=>{ ring(c1, 1, '啟動數'); spark(c2,[0,1,1,2,2,3,3],'開放迴路'); }
+  },
+  mbo:{name:'MBO 目標管理', desc:'主目標→子目標→責任',
+    intro:['層級分解，責任清晰','子目標貢獻主目標'],
+    questions:[{k:'main',l:'主目標是？'},{k:'sub1',l:'子目標 1？'},{k:'sub2',l:'子目標 2？'},{k:'sub3',l:'子目標 3？'}],
+    makeTasks:(g,v)=>['sub1','sub2','sub3'].map((k,i)=>({id:uid(),goal_id:g.id,title:`建立子目標 ${i+1}：${v[k]||'未命名'}`,type:'mbo',estimate_min:40,due_date:todayISO(),status:'pending'})),
+    charts:(c1,c2)=>{ bars(c1,[30,40,20],'子目標貢獻'); ring(c2, 12, '本週推進'); }
+  },
+  eisenhower:{name:'艾森豪矩陣', desc:'重要 × 緊急 四象限',
+    intro:['辨識假緊急、釋放 Q2 長期價值'],
+    questions:[{k:'q1',l:'Q1 重要且緊急（逗號分隔）'},{k:'q2',l:'Q2 重要不緊急'},{k:'q3',l:'Q3 不重要但緊急'},{k:'q4',l:'Q4 不重要不緊急'}],
+    makeTasks:(g,v)=>{ const out=[]; const add=(k,p)=> (v[k]||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(x=> out.push({id:uid(),goal_id:g.id,title:`[${p}] ${x}`,type:'task',estimate_min:25,due_date:todayISO(),status:'pending'})); add('q1','立即做'); add('q2','排程'); add('q3','委派'); return out; },
+    charts:(c1,c2)=>{ quad(c1,{q1:2,q2:5,q3:1,q4:0}); spark(c2,[2,3,5,6,4,5,7],'完成數'); }
+  },
+  parkinson:{name:'帕金森法則', desc:'限時壓縮提高效率',
+    intro:['時間越短越專注','挑戰限時版完成'],
+    questions:[{k:'task',l:'要限時完成的任務？'},{k:'limit',l:'限定分鐘數（數字）'}],
+    makeTasks:(g,v)=>[{id:uid(),goal_id:g.id,title:`限時 ${parseInt(v.limit||'40',10)} 分鐘：${v.task||'目標任務'}`,type:'timebox',estimate_min:parseInt(v.limit||'40',10),due_date:todayISO(),status:'pending'}],
+    charts:(c1,c2)=>{ ring(c1, 80, '時間壓縮率'); bars(c2,[60,50,45,40],'挑戰歷史(分)'); }
+  },
+  kaizen:{name:'Kaizen 改善', desc:'每日 1% 微進步',
+    intro:['最小可行行動 ≤5 分鐘','以打卡累積複利'],
+    questions:[{k:'micro',l:'今天最小可行行動？(≤5 分)'},{k:'reason',l:'為什麼這件事重要？'}],
+    makeTasks:(g,v)=>{ const out=[]; for(let i=0;i<7;i++){ const d=new Date(); d.setDate(d.getDate()+i); out.push({id:uid(),goal_id:g.id,title:`微進步：${v.micro||'行動'}`,type:'kaizen',estimate_min:5,due_date:d.toISOString().slice(0,10),status:'pending'});} return out;},
+    charts:(c1,c2)=>{ spark(c1,[1,1,1,1,1,1,1],'連勝'); ring(c2, 5, '今日打卡(分)'); }
+  },
+  gtd:{name:'GTD', desc:'收集→釐清→組織→回顧→執行',
+    intro:['卸載腦中待辦，降低焦慮','用週回顧維持系統可信度'],
+    questions:[{k:'inbox',l:'腦中待辦（逗號分隔）'},{k:'next',l:'下一步行動（1~3 件）'}],
+    makeTasks:(g,v)=>{ const out=[];(v.inbox||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(x=> out.push({id:uid(),goal_id:g.id,title:`收集：${x}`,type:'gtd',estimate_min:10,due_date:todayISO(),status:'pending'})); (v.next||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(x=> out.push({id:uid(),goal_id:g.id,title:`Next：${x}`,type:'gtd',estimate_min:20,due_date:todayISO(),status:'pending'})); return out;},
+    charts:(c1,c2)=>{ bars(c1,[5,3,2,1],'待辦處理'); spark(c2,[0,2,4,5,6,7,9],'收集量'); }
+  },
+  okr:{name:'OKR（季）', desc:'Objective + Key Results',
+    intro:['用 KR 量化成功','每週校準，每季滾動'],
+    questions:[{k:'objective',l:'本季 Objective？'},{k:'kr1',l:'KR1'},{k:'kr2',l:'KR2'},{k:'kr3',l:'KR3（可選）'}],
+    makeTasks:(g,v)=>{ const out=[]; [v.kr1,v.kr2,v.kr3].filter(Boolean).forEach((kr,idx)=>{ for(let w=1;w<=6;w++){ const d=new Date(); d.setDate(d.getDate()+w*7); out.push({id:uid(),goal_id:g.id,title:`KR${idx+1}：${kr}（週 ${w}/6）`,type:'okr',estimate_min:60,due_date:d.toISOString().slice(0,10),status:'pending'}); }}); return out;},
+    charts:(c1,c2)=>{ bars(c1,[10,30,50,60],'KR 進度(%)'); spark(c2,[10,18,36,44,52,60,68],'趨勢'); }
+  },
+  ifthen:{name:'If–Then 實行意圖', desc:'If 情境 → Then 行為',
+    intro:['把高風險觸發與替代行為綁定','情境一到自動啟動'],
+    questions:[{k:'trigger',l:'If 觸發情境？'},{k:'action',l:'Then 行為？'}],
+    makeTasks:(g,v)=>{ const out=[]; for(let i=0;i<14;i++){ const d=new Date(); d.setDate(d.getDate()+i); out.push({id:uid(),goal_id:g.id,title:`If ${v.trigger||'情境'} → Then ${v.action||'行為'}`,type:'if-then',estimate_min:10,due_date:d.toISOString().slice(0,10),status:'pending'});} return out;},
+    charts:(c1,c2)=>{ ring(c1, 40, '執行率'); spark(c2,[0,1,1,1,2,2,3],'觸發次數'); }
+  },
+  woop:{name:'WOOP / MCII', desc:'願望→結果→障礙→計畫',
+    intro:['心理對比 + 如果那麼計畫，提升落地率'],
+    questions:[{k:'wish',l:'願望（Wish）？'},{k:'outcome',l:'最好結果（Outcome）？'},{k:'obstacle',l:'主要障礙（Obstacle）？'},{k:'plan',l:'如果遇到障礙，計畫是？（Plan）'}],
+    makeTasks:(g,v)=>{ const out=[]; for(let i=0;i<3;i++){ const d=new Date(); d.setDate(d.getDate()+i*2); out.push({id:uid(),goal_id:g.id,title:`克服障礙：${v.obstacle||'障礙'} → ${v.plan||'對策'}`,type:'woop',estimate_min:30,due_date:d.toISOString().slice(0,10),status:'pending'});} return out;},
+    charts:(c1,c2)=>{ bars(c1,[20,40,60],'障礙克服率'); ring(c2, 55, '信心指數'); }
+  },
+  tmt:{name:'TMT 暫時動機', desc:'E×V/(D×I)',
+    intro:['縮短延遲、提高立即回饋，顯著降低拖延'],
+    questions:[{k:'expectancy',l:'期待值 E (0–10)'},{k:'value',l:'價值 V (0–10)'},{k:'delay',l:'延遲 D (天)'},{k:'impuls',l:'衝動性 I (0–10)'},{k:'shorten',l:'如何把任務切小（≤40 分）？'},{k:'feedback',l:'如何更快得到回饋？'}],
+    makeTasks:(g,v)=>[{id:uid(),goal_id:g.id,title:`切小：${v.shorten||'切成 30–40 分'}`,type:'tmt',estimate_min:30,due_date:todayISO(),status:'pending'},{id:uid(),goal_id:g.id,title:`快速回饋：${v.feedback||'用番茄回饋'}`,type:'tmt',estimate_min:20,due_date:todayISO(),status:'pending'}],
+    charts:(c1,c2)=>{ ring(c1, 72, '動機指數'); spark(c2,[50,55,60,66,70,72,74],'波動'); }
+  },
+  fogg:{name:'Fogg 行為模型', desc:'動機 × 能力 × 提示',
+    intro:['調整難度與提示，超過行動臨界線'],
+    questions:[{k:'motivation',l:'動機(0–10)'},{k:'ability',l:'能力/容易度(0–10)'},{k:'prompt',l:'哪種提示最有效？'}],
+    makeTasks:(g,v)=>[{id:uid(),goal_id:g.id,title:`降低難度：把任務改為 10 分鐘版`,type:'fogg',estimate_min:10,due_date:todayISO(),status:'pending'},{id:uid(),goal_id:g.id,title:`設定提示：${v.prompt||'手機鬧鐘/日曆'}`,type:'fogg',estimate_min:5,due_date:todayISO(),status:'pending'}],
+    charts:(c1,c2)=>{ bars(c1,[v2n('motivation'),v2n('ability')],'M/A'); ring(c2, 60, '提示有效度'); }
+  },
+  commit:{name:'承諾裝置', desc:'押金/懲罰/公開承諾',
+    intro:['運用損失趨避，讓未來的自己綁住現在的自己'],
+    questions:[{k:'stake',l:'失敗成本（押金/處罰）'},{k:'referee',l:'見證人/群組'}],
+    makeTasks:(g,v)=>{ const out=[]; for(let w=1;w<=4;w++){ const d=new Date(); d.setDate(d.getDate()+w*7); out.push({id:uid(),goal_id:g.id,title:`承諾檢視 W${w}`,type:'commit',estimate_min:15,due_date:d.toISOString().slice(0,10),status:'pending'});} return out;},
+    charts:(c1,c2)=>{ ring(c1, 20, '承諾進度'); spark(c2,[0,1,1,2,2,3,3],'回報次數'); }
+  },
+  nudge:{name:'助推理論', desc:'預設/提醒/環境設計',
+    intro:['用預設選項與提醒，讓好選擇更容易'],
+    questions:[{k:'default',l:'你希望系統幫你預設什麼？'},{k:'remind',l:'偏好提醒頻率？（每日/每週）'}],
+    makeTasks:(g,v)=>[{id:uid(),goal_id:g.id,title:`設定預設行為：${v.default||'每天 15 分鐘閱讀'}`,type:'nudge',estimate_min:10,due_date:todayISO(),status:'pending'},{id:uid(),goal_id:g.id,title:`建立提醒：${v.remind||'每日'}`,type:'nudge',estimate_min:5,due_date:todayISO(),status:'pending'}],
+    charts:(c1,c2)=>{ spark(c1,[1,2,3,3,4,5,6],'提醒回應'); ring(c2, 35, '採納率'); }
+  },
+  deepwork:{name:'深度工作', desc:'長時段高專注',
+    intro:['預約深度時段、關閉干擾、明確輸出'],
+    questions:[{k:'block',l:'深度工作時段（如 09:00–11:00）'},{k:'output',l:'今日預期輸出？'}],
+    makeTasks:(g,v)=>[{id:uid(),goal_id:g.id,title:`深度工作：${v.block||'兩小時'}`,type:'deepwork',estimate_min:90,due_date:todayISO(),status:'pending'},{id:uid(),goal_id:g.id,title:`輸出：${v.output||'章節初稿/程式模組'}`,type:'deepwork',estimate_min:30,due_date:todayISO(),status:'pending'}],
+    charts:(c1,c2)=>{ bars(c1,[2,3,2,4,3],'本週深度段數'); ring(c2, 45, '今日專注(分)'); }
+  },
+  habit:{name:'習慣形成', desc:'觸發→行為→獎賞',
+    intro:['每日連勝與獎賞，讓行為自動化'],
+    questions:[{k:'habit',l:'你要建立的習慣是？'},{k:'time',l:'每天何時執行？'},{k:'streak',l:'目標連勝天數？'}],
+    makeTasks:(g,v)=>{ const out=[]; for(let i=0;i<parseInt(v.streak||'21',10);i++){ const d=new Date(); d.setDate(d.getDate()+i); out.push({id:uid(),goal_id:g.id,title:`習慣打卡：${v.habit||'新習慣'}`,type:'habit',estimate_min:5,due_date:d.toISOString().slice(0,10),status:'pending'});} return out;},
+    charts:(c1,c2)=>{ spark(c1,[0,1,2,3,4,5,6],'連勝'); ring(c2, 3, '今日打卡'); }
+  },
+  kaizen_kanban:{name:'Kaizen × 看板', desc:'小步快跑 + 流程可視化',
+    intro:['限制 WIP，降低多工切換成本'],
+    questions:[{k:'todo',l:'待辦（逗號分隔）'},{k:'wip',l:'WIP 上限（數字）'}],
+    makeTasks:(g,v)=>{ const out=[];(v.todo||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(x=> out.push({id:uid(),goal_id:g.id,title:x,type:'kanban',estimate_min:25,due_date:todayISO(),status:'pending'})); return out;},
+    charts:(c1,c2)=>{ bars(c1,[3,2,1],'ToDo/Doing/Done'); ring(c2, 2, '當前 WIP'); }
+  },
+  woop_pomodoro:{name:'WOOP × 番茄', desc:'心理對比 + 番茄行動',
+    intro:['把障礙對策化為番茄任務，邊想邊做'],
+    questions:[{k:'wish',l:'願望是？'},{k:'obstacle',l:'障礙是？'},{k:'plan',l:'對策是？'},{k:'rounds',l:'啟動幾個番茄？(數字)'}],
+    makeTasks:(g,v)=>{ const out=[]; const n=Math.max(1,parseInt(v.rounds||'3',10)); for(let i=1;i<=n;i++){ out.push({id:uid(),goal_id:g.id,title:`番茄 ${i}/${n}：${v.plan||'執行對策'}`,type:'woop-pomodoro',estimate_min:25,due_date:todayISO(),status:'pending'});} return out;},
+    charts:(c1,c2)=>{ bars(c1,[1,2,3],'番茄進度'); ring(c2, 50, '對策落地率'); }
+  }
+};
+
+// ===== 初始化頁面 =====
+const id = qs('id');
+const M = METHODS[id] || METHODS.smart;
+
+document.getElementById('methodTitle').textContent = M.name;
+document.getElementById('methodDesc').textContent = M.desc;
+
+// 簡介
+const intro = document.getElementById('intro');
+intro.innerHTML = `<div style="font-weight:700; margin-bottom:6px">${M.name} · 方法簡介</div>`+
+  `<ul class="muted" style="margin:6px 0 0 18px; line-height:1.7">`+
+  M.intro.map(x=>`<li>${x}</li>`).join('')+
+  `</ul>`;
+
+// 問題表單
+const form = document.getElementById('guideForm');
+form.innerHTML = M.questions.map(q=>`<div style="margin-bottom:10px"><label>${q.l}</label><input id="q_${q.k}"></div>`).join('');
+
+// 簡易圖表工具（無外掛）
+function ring(canvas, value, label){ const ctx=canvas.getContext('2d'); const w=canvas.width=canvas.clientWidth, h=canvas.height=canvas.clientHeight; const r=Math.min(w,h)/2-14; const cx=w/2, cy=h/2; ctx.clearRect(0,0,w,h); ctx.lineWidth=12; ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke(); ctx.strokeStyle='rgba(102,126,234,0.85)'; ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*(Math.max(0,Math.min(100,value))/100)); ctx.stroke(); ctx.fillStyle='#e5e7eb'; ctx.font='700 18px system-ui'; ctx.textAlign='center'; ctx.fillText(`${label}`,cx,cy-4); ctx.font='700 22px system-ui'; ctx.fillText(`${value}%`,cx,cy+22); }
+function bars(canvas, arr, label){ const ctx=canvas.getContext('2d'); const w=canvas.width=canvas.clientWidth, h=canvas.height=canvas.clientHeight; ctx.clearRect(0,0,w,h); const m=24; const ww=(w-m*2)/arr.length; const max=Math.max(...arr,1); ctx.fillStyle='rgba(102,126,234,0.9)'; arr.forEach((v,i)=>{ const bh=(h-m*2)*(v/max); ctx.fillRect(m+i*ww, h-m-bh, ww*0.7, bh); }); ctx.fillStyle='#e5e7eb'; ctx.font='700 14px system-ui'; ctx.fillText(label||'', m, 18); }
+function spark(canvas, arr, label){ const ctx=canvas.getContext('2d'); const w=canvas.width=canvas.clientWidth, h=canvas.height=canvas.clientHeight; ctx.clearRect(0,0,w,h); const m=18; const max=Math.max(...arr,1), min=Math.min(...arr); ctx.strokeStyle='rgba(102,126,234,0.9)'; ctx.lineWidth=2; ctx.beginPath(); arr.forEach((v,i)=>{ const x=m+i*( (w-m*2)/(arr.length-1||1) ); const y=h-m-( (h-m*2) * ( (v-min)/(max-min||1) ) ); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }); ctx.stroke(); ctx.fillStyle='#e5e7eb'; ctx.font='700 14px system-ui'; ctx.fillText(label||'', m, 18); }
+function quad(canvas,q){ const ctx=canvas.getContext('2d'); const w=canvas.width=canvas.clientWidth, h=canvas.height=canvas.clientHeight; ctx.clearRect(0,0,w,h); ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.strokeRect(1,1,w-2,h-2); ctx.fillStyle='rgba(102,126,234,0.85)'; const cw=w/2,ch=h/2; ctx.globalAlpha=0.85; ctx.fillRect(0,0,cw,ch*(q.q1||0)/6); ctx.fillRect(cw,0,cw,ch*(q.q2||0)/6); ctx.fillRect(0,ch,cw,ch*(q.q3||0)/6); ctx.fillRect(cw,ch,cw,ch*(q.q4||0)/6); ctx.globalAlpha=1; ctx.fillStyle='#e5e7eb'; ctx.font='700 14px system-ui'; ctx.fillText('Q1 Q2 Q3 Q4', 10, 18); }
+function v2n(k){ const el=document.getElementById('q_'+k); const n=parseFloat(el?.value||'0'); return isNaN(n)?0:n; }
+
+// 初始化圖表
+M.charts(document.getElementById('chart1'), document.getElementById('chart2'));
+
+// 預覽 / 建立
+function gather(){ const v={}; M.questions.forEach(q=> v[q.k] = (document.getElementById('q_'+q.k)?.value||'').trim()); return v; }
+function previewPlan(e){ e.preventDefault(); const v=gather(); alert('計畫預覽\n'+JSON.stringify(v,null,2)); }
+function createPlan(e){ e.preventDefault(); const v=gather(); const title = M.name + ' 計畫'; const dfltDeadline = (()=>{const d=new Date(); d.setDate(d.getDate()+30); return d.toISOString().slice(0,10)})(); const g = {id:uid(), title, deadline:dfltDeadline, weekly_hours:6, status:'active', progress:0, notes:'method:'+id, created_at:new Date().toISOString()}; const tasks = (M.makeTasks(g,v)||[]); // 確保今天至少 1 任務
+ if(!tasks.some(t=>t.due_date===todayISO())) tasks.unshift({id:uid(),goal_id:g.id,title:'啟動：花 15 分鐘啟動',type:'start',estimate_min:15,due_date:todayISO(),status:'pending'});
+ state.goals.push(g); state.tasks = state.tasks.concat(tasks); state.activeGoalId=g.id; save('dreampath', state); location.href='index.html'; }
+</script>
+</body>
+</html>

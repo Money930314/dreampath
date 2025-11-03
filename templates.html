@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>規劃模板庫 — DreamPath</title>
+  <style>
+    :root{ --bg:#0f172a; --panel:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --border:rgba(148,163,184,.18); --primary:#667eea; --accent:#764ba2; --ring:rgba(102,126,234,.35) }
+    *{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Noto Sans TC",Arial}
+    a{color:#c7d2fe; text-decoration:none}
+    .shell{max-width:1100px; margin:0 auto; padding:20px 16px 60px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0}
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:grid; place-items:center; font-weight:800; color:white}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .btn{appearance:none; border:1px solid var(--border); background:#0b1220; color:#e5e7eb; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600}
+    .btn.primary{background:linear-gradient(135deg,var(--primary),var(--accent)); border:0}
+    .tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px}
+    .tile{padding:16px; border:1px solid var(--border); background:#0b1220; border-radius:14px; display:flex; flex-direction:column; gap:8px}
+    .muted{color:#94a3b8} .section-title{font-size:14px; letter-spacing:.6px; text-transform:uppercase; color:#a3b3c7; margin:8px 0 10px}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">DP</div>
+        <div>
+          <div style="font-weight:700">規劃模板庫</div>
+          <div class="muted" style="font-size:12px">每個模板提供：方法簡介 / 適用情境 / 一鍵導向專屬頁（含引導與 Dashboard）。</div>
+        </div>
+      </div>
+      <div><a class="btn" href="index.html">← 回 Dashboard</a></div>
+    </header>
+
+    <section class="card">
+      <div id="tplList" class="tiles"></div>
+    </section>
+  </div>
+
+  <script>
+  const CARDS = [
+    {id:'smart',     name:'SMART 目標', desc:'Specific/Measurable/Achievable/Relevant/Time-bound', feature:'把願望變成可驗收的明確目標', apply:'目標模糊、不知如何衡量'},
+    {id:'pomodoro',  name:'番茄工作法', desc:'25/50 專注 + 短休', feature:'降低啟動成本、快速累積進度', apply:'容易分心、需要短回合'},
+    {id:'zeigarnik', name:'Zeigarnik 效應', desc:'未完成的事更難以忘記', feature:'只要求「先開始第一步」', apply:'想做卻卡住、啟動困難'},
+    {id:'mbo',       name:'MBO 目標管理', desc:'主目標→子目標→責任', feature:'層級對齊與責任清晰', apply:'團隊/專案的目標管理'},
+    {id:'eisenhower',name:'艾森豪矩陣', desc:'重要 × 緊急 四象限', feature:'辨識假緊急，釋放 Q2 時間', apply:'每天很忙卻沒產出'},
+    {id:'parkinson', name:'帕金森法則', desc:'工作會膨脹至填滿時間', feature:'限時版緊迫模擬', apply:'常拖到截止前才動'},
+    {id:'kaizen',    name:'Kaizen 改善', desc:'每日 1% 微進步', feature:'小步快跑、複利成長', apply:'想建立長期習慣'},
+    {id:'gtd',       name:'GTD', desc:'收集→釐清→組織→回顧→執行', feature:'卸載腦中待辦、降低焦慮', apply:'任務多、資訊分散'},
+    {id:'okr',       name:'OKR（季）', desc:'Objective + Key Results', feature:'以 KR 量化成果', apply:'季度成長、長期主題'},
+    {id:'ifthen',    name:'If–Then 實行意圖', desc:'If 情境 → Then 行為', feature:'寫好情境腳本就會自動啟動', apply:'易被干擾、臨場猶豫'},
+    {id:'woop',      name:'WOOP / MCII', desc:'願望→結果→障礙→計畫', feature:'心理對比 + 如果那麼計畫', apply:'面對障礙需要對策'},
+    {id:'tmt',       name:'TMT 暫時動機', desc:'E×V/(D×I)', feature:'拉近回饋、切小塊', apply:'嚴重拖延'},
+    {id:'fogg',      name:'Fogg 行為模型', desc:'Motivation × Ability × Prompt', feature:'找到行動臨界線', apply:'需要調整難度與提示'},
+    {id:'commit',    name:'承諾裝置', desc:'押金/懲罰/公開承諾', feature:'損失趨避提高自律', apply:'需要外部約束'},
+    {id:'nudge',     name:'助推理論', desc:'善用預設與提醒', feature:'環境設計幫助好選擇', apply:'需要系統性提醒'},
+    {id:'deepwork',  name:'深度工作', desc:'長時段高專注', feature:'阻絕干擾、定時段輸出', apply:'研究/寫作/工程'},
+    {id:'habit',     name:'習慣形成', desc:'觸發→行為→獎賞', feature:'連勝打卡、自動化', apply:'想養成新習慣'},
+    {id:'kaizen_kanban', name:'Kaizen × 看板', desc:'小步快跑 + 流程可視化', feature:'WIP 限制、卡關分析', apply:'個人敏捷/多任務'},
+    {id:'woop_pomodoro', name:'WOOP × 番茄', desc:'心理對比 + 番茄行動', feature:'把障礙對策化為番茄任務', apply:'需要邊思考邊執行'}
+  ];
+
+  const listEl = document.getElementById('tplList');
+  listEl.innerHTML = CARDS.map(t=>`
+    <div class="tile">
+      <div style="font-weight:700">${t.name}</div>
+      <div class="muted" style="font-size:12px">${t.desc}</div>
+      <ul class="muted" style="margin:6px 0 0 18px; font-size:12px; line-height:1.5">
+        <li><b>特色：</b>${t.feature}</li>
+        <li><b>適用：</b>${t.apply}</li>
+      </ul>
+      <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end">
+        <a class="btn" href="method-${t.id}.html">使用此模板</a>
+      </div>
+    </div>
+  `).join('');
+  </script>
+</body>
+</html>
