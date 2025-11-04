@@ -17,7 +17,12 @@
     .btn.primary{background:linear-gradient(135deg,var(--primary),var(--accent)); border:0}
     .tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px}
     .tile{padding:16px; border:1px solid var(--border); background:#0b1220; border-radius:14px; display:flex; flex-direction:column; gap:8px}
-    .muted{color:#94a3b8} .section-title{font-size:14px; letter-spacing:.6px; text-transform:uppercase; color:#a3b3c7; margin:8px 0 10px}
+    .muted{color:#94a3b8}
+    .filters{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px}
+    .chip{display:inline-block; padding:6px 10px; border:1px solid var(--border); background:#0b1220; border-radius:999px; font-size:12px; cursor:pointer}
+    .chip.active{outline:2px solid var(--ring)}
+    input[type="search"]{width:260px}
+    .tile:focus{outline:2px solid rgba(102,126,234,.55); outline-offset:2px}
   </style>
 </head>
 <body>
@@ -30,51 +35,96 @@
           <div class="muted" style="font-size:12px">每個模板提供：方法簡介 / 適用情境 / 一鍵導向專屬頁（含引導與 Dashboard）。</div>
         </div>
       </div>
-      <div><a class="btn" href="index.html">← 回 Dashboard</a></div>
+      <div><a class="btn" href="index.html">← 回 Dashboard</a>
+           <a class="btn" href="assistant.html">AI 規劃助理</a>
+      </div>
     </header>
 
     <section class="card">
-      <div id="tplList" class="tiles"></div>
+      <div class="filters" role="toolbar" aria-label="模板篩選">
+        <input id="q" type="search" placeholder="搜尋方法／用途…" aria-label="搜尋模板">
+        <span class="muted" style="font-size:12px">用途：</span>
+        <button class="chip" data-tag="study" aria-pressed="false">學習</button>
+        <button class="chip" data-tag="project" aria-pressed="false">專案</button>
+        <button class="chip" data-tag="habit" aria-pressed="false">習慣</button>
+        <span class="muted" style="font-size:12px">時間：</span>
+        <button class="chip" data-tag="day" aria-pressed="false">日</button>
+        <button class="chip" data-tag="week" aria-pressed="false">週</button>
+        <button class="chip" data-tag="season" aria-pressed="false">季</button>
+        <span class="muted" style="font-size:12px">難度：</span>
+        <button class="chip" data-tag="easy" aria-pressed="false">入門</button>
+        <button class="chip" data-tag="pro" aria-pressed="false">進階</button>
+      </div>
+      <div id="tplList" class="tiles" aria-live="polite"></div>
     </section>
   </div>
 
   <script>
   const CARDS = [
-    {id:'smart',     name:'SMART 目標', desc:'Specific/Measurable/Achievable/Relevant/Time-bound', feature:'把願望變成可驗收的明確目標', apply:'目標模糊、不知如何衡量'},
-    {id:'pomodoro',  name:'番茄工作法', desc:'25/50 專注 + 短休', feature:'降低啟動成本、快速累積進度', apply:'容易分心、需要短回合'},
-    {id:'zeigarnik', name:'Zeigarnik 效應', desc:'未完成的事更難以忘記', feature:'只要求「先開始第一步」', apply:'想做卻卡住、啟動困難'},
-    {id:'mbo',       name:'MBO 目標管理', desc:'主目標→子目標→責任', feature:'層級對齊與責任清晰', apply:'團隊/專案的目標管理'},
-    {id:'eisenhower',name:'艾森豪矩陣', desc:'重要 × 緊急 四象限', feature:'辨識假緊急，釋放 Q2 時間', apply:'每天很忙卻沒產出'},
-    {id:'parkinson', name:'帕金森法則', desc:'工作會膨脹至填滿時間', feature:'限時版緊迫模擬', apply:'常拖到截止前才動'},
-    {id:'kaizen',    name:'Kaizen 改善', desc:'每日 1% 微進步', feature:'小步快跑、複利成長', apply:'想建立長期習慣'},
-    {id:'gtd',       name:'GTD', desc:'收集→釐清→組織→回顧→執行', feature:'卸載腦中待辦、降低焦慮', apply:'任務多、資訊分散'},
-    {id:'okr',       name:'OKR（季）', desc:'Objective + Key Results', feature:'以 KR 量化成果', apply:'季度成長、長期主題'},
-    {id:'ifthen',    name:'If–Then 實行意圖', desc:'If 情境 → Then 行為', feature:'寫好情境腳本就會自動啟動', apply:'易被干擾、臨場猶豫'},
-    {id:'woop',      name:'WOOP / MCII', desc:'願望→結果→障礙→計畫', feature:'心理對比 + 如果那麼計畫', apply:'面對障礙需要對策'},
-    {id:'tmt',       name:'TMT 暫時動機', desc:'E×V/(D×I)', feature:'拉近回饋、切小塊', apply:'嚴重拖延'},
-    {id:'fogg',      name:'Fogg 行為模型', desc:'Motivation × Ability × Prompt', feature:'找到行動臨界線', apply:'需要調整難度與提示'},
-    {id:'commit',    name:'承諾裝置', desc:'押金/懲罰/公開承諾', feature:'損失趨避提高自律', apply:'需要外部約束'},
-    {id:'nudge',     name:'助推理論', desc:'善用預設與提醒', feature:'環境設計幫助好選擇', apply:'需要系統性提醒'},
-    {id:'deepwork',  name:'深度工作', desc:'長時段高專注', feature:'阻絕干擾、定時段輸出', apply:'研究/寫作/工程'},
-    {id:'habit',     name:'習慣形成', desc:'觸發→行為→獎賞', feature:'連勝打卡、自動化', apply:'想養成新習慣'},
-    {id:'kaizen_kanban', name:'Kaizen × 看板', desc:'小步快跑 + 流程可視化', feature:'WIP 限制、卡關分析', apply:'個人敏捷/多任務'},
-    {id:'woop_pomodoro', name:'WOOP × 番茄', desc:'心理對比 + 番茄行動', feature:'把障礙對策化為番茄任務', apply:'需要邊思考邊執行'}
+    {id:'smart',     name:'SMART 目標', desc:'Specific/Measurable/Achievable/Relevant/Time-bound', feature:'把願望變成可驗收的明確目標', apply:'目標模糊、不知如何衡量', tags:['project','week','pro']},
+    {id:'pomodoro',  name:'番茄工作法', desc:'25/50 專注 + 短休', feature:'降低啟動成本、快速累積進度', apply:'容易分心、需要短回合', tags:['study','day','easy']},
+    {id:'zeigarnik', name:'Zeigarnik 效應', desc:'未完成的事更難以忘記', feature:'只要求「先開始第一步」', apply:'想做卻卡住、啟動困難', tags:['study','project','day','easy']},
+    {id:'mbo',       name:'MBO 目標管理', desc:'主目標→子目標→責任', feature:'層級對齊與責任清晰', apply:'團隊/專案的目標管理', tags:['project','season','pro']},
+    {id:'eisenhower',name:'艾森豪矩陣', desc:'重要 × 緊急 四象限', feature:'辨識假緊急，釋放 Q2 時間', apply:'每天很忙卻沒產出', tags:['project','day','easy']},
+    {id:'parkinson', name:'帕金森法則', desc:'工作會膨脹至填滿時間', feature:'限時版緊迫模擬', apply:'常拖到截止前才動', tags:['study','project','day','easy']},
+    {id:'kaizen',    name:'Kaizen 改善', desc:'每日 1% 微進步', feature:'小步快跑、複利成長', apply:'想建立長期習慣', tags:['habit','day','easy']},
+    {id:'gtd',       name:'GTD', desc:'收集→釐清→組織→回顧→執行', feature:'卸載腦中待辦、降低焦慮', apply:'任務多、資訊分散', tags:['project','week','pro']},
+    {id:'okr',       name:'OKR（季）', desc:'Objective + Key Results', feature:'以 KR 量化成果', apply:'季度成長、長期主題', tags:['project','season','pro']},
+    {id:'ifthen',    name:'If–Then 實行意圖', desc:'If 情境 → Then 行為', feature:'寫好情境腳本就會自動啟動', apply:'易被干擾、臨場猶豫', tags:['habit','day','easy']},
+    {id:'woop',      name:'WOOP / MCII', desc:'願望→結果→障礙→計畫', feature:'心理對比 + 如果那麼計畫', apply:'面對障礙需要對策', tags:['study','project','week','easy']},
+    {id:'tmt',       name:'TMT 暫時動機', desc:'E×V/(D×I)', feature:'拉近回饋、切小塊', apply:'嚴重拖延', tags:['study','day','pro']},
+    {id:'fogg',      name:'Fogg 行為模型', desc:'Motivation × Ability × Prompt', feature:'找到行動臨界線', apply:'需要調整難度與提示', tags:['habit','day','easy']},
+    {id:'commit',    name:'承諾裝置', desc:'押金/懲罰/公開承諾', feature:'損失趨避提高自律', apply:'需要外部約束', tags:['habit','week','pro']},
+    {id:'nudge',     name:'助推理論', desc:'善用預設與提醒', feature:'環境設計幫助好選擇', apply:'需要系統性提醒', tags:['habit','day','easy']},
+    {id:'deepwork',  name:'深度工作', desc:'長時段高專注', feature:'阻絕干擾、定時段輸出', apply:'研究/寫作/工程', tags:['study','day','pro']},
+    {id:'habit',     name:'習慣形成', desc:'觸發→行為→獎賞', feature:'連勝打卡、自動化', apply:'想養成新習慣', tags:['habit','day','easy']},
+    {id:'kaizen_kanban', name:'Kaizen × 看板', desc:'小步快跑 + 流程可視化', feature:'WIP 限制、卡關分析', apply:'個人敏捷/多任務', tags:['project','week','pro']},
+    {id:'woop_pomodoro', name:'WOOP × 番茄', desc:'心理對比 + 番茄行動', feature:'把障礙對策化為番茄任務', apply:'需要邊思考邊執行', tags:['study','day','easy']}
   ];
 
   const listEl = document.getElementById('tplList');
-  listEl.innerHTML = CARDS.map(t=>`
-    <div class="tile">
-      <div style="font-weight:700">${t.name}</div>
-      <div class="muted" style="font-size:12px">${t.desc}</div>
-      <ul class="muted" style="margin:6px 0 0 18px; font-size:12px; line-height:1.5">
-        <li><b>特色：</b>${t.feature}</li>
-        <li><b>適用：</b>${t.apply}</li>
-      </ul>
-      <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end">
-        <a class="btn" href="method-${t.id}.html">使用此模板</a>
+  const q = document.getElementById('q');
+  const chips = Array.from(document.querySelectorAll('.chip'));
+  const active = new Set();
+
+  function render(list){
+    listEl.innerHTML = list.map(t=>`
+      <div class="tile" tabindex="0">
+        <div style="font-weight:700">${t.name}</div>
+        <div class="muted" style="font-size:12px">${t.desc}</div>
+        <ul class="muted" style="margin:6px 0 0 18px; font-size:12px; line-height:1.5">
+          <li><b>特色：</b>${t.feature}</li>
+          <li><b>適用：</b>${t.apply}</li>
+        </ul>
+        <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end">
+          <a class="btn" href="method-${t.id}.html" aria-label="使用 ${t.name} 模板">使用此模板</a>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  function applyFilter(){
+    const kw = (q.value||'').toLowerCase();
+    const data = CARDS.filter(t=>{
+      const hitKw = !kw || [t.name,t.desc,t.feature,t.apply].join('\n').toLowerCase().includes(kw);
+      const hitTag = active.size===0 || t.tags.some(tag=>active.has(tag));
+      return hitKw && hitTag;
+    });
+    render(data);
+  }
+
+  q.addEventListener('input', applyFilter);
+  chips.forEach(c=> c.addEventListener('click', ()=>{
+    const tag=c.dataset.tag;
+    const pressed=c.getAttribute('aria-pressed')==='true';
+    if(pressed){ active.delete(tag); c.classList.remove('active'); c.setAttribute('aria-pressed','false'); }
+    else { active.add(tag); c.classList.add('active'); c.setAttribute('aria-pressed','true'); }
+    applyFilter();
+  }));
+
+  render(CARDS);
+  // 鍵盤操作：卡片得焦後按 Enter 會點第一個連結
+  listEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const a=e.target.querySelector('a'); if(a) a.click(); }});
   </script>
 </body>
 </html>
