@@ -117,6 +117,48 @@
 
   <div id="toast" class="toast"></div>
 
+  <!-- 匯出 / 匯入 -->
+<div style="display:flex; gap:8px; justify-content:flex-end; margin:8px 0">
+  <button class="btn" onclick="exportData()" aria-label="匯出資料">匯出 JSON</button>
+  <label class="btn" for="importFile" aria-label="匯入資料">匯入 JSON</label>
+  <input id="importFile" type="file" accept="application/json" style="display:none"/>
+</div>
+
+<script>
+function exportData(){
+  const data = localStorage.getItem('dreampath')||'{}';
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='dreampath.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+const importEl = document.getElementById('importFile');
+if(importEl){
+  importEl.addEventListener('change', async (e)=>{
+    const f=e.target.files?.[0]; if(!f) return;
+    const txt=await f.text();
+    try{ JSON.parse(txt); localStorage.setItem('dreampath', txt); alert('匯入完成，重新整理後生效'); location.reload(); }
+    catch(err){ alert('檔案格式錯誤'); }
+  });
+}
+
+// 空狀態推薦（Dashboard 沒有任務時）
+(function(){ try{
+  const s=JSON.parse(localStorage.getItem('dreampath')||'{}'); const tasks=Array.isArray(s?.tasks)?s.tasks:[];
+  if(tasks.length===0){
+    const host=document.querySelector('#emptyState')||document.body; const wrap=document.createElement('section');
+    wrap.className='card'; wrap.innerHTML=`
+      <div style="font-weight:700;margin-bottom:8px">還沒有任務？先從這些模板開始：</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+        <a class="btn" href="method-smart.html">SMART 目標</a>
+        <a class="btn" href="method-pomodoro.html">番茄工作法</a>
+        <a class="btn" href="method-gtd.html">GTD</a>
+        <a class="btn" href="assistant.html">AI 規劃助理</a>
+      </div>`;
+    host.prepend(wrap);
+  }
+}catch(e){} })();
+</script>
+
+
   <script>
   // ====== 共用存取 ======
   const $ = (id)=>document.getElementById(id);
