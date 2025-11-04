@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 規劃助理 — DreamPath</title>
+  <style>
+    :root{ --bg:#0f172a; --panel:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --border:rgba(148,163,184,.18); --primary:#667eea; --accent:#764ba2; --ring:rgba(102,126,234,.35) }
+    *{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Noto Sans TC",Arial}
+    a{color:#c7d2fe; text-decoration:none}
+    .shell{max-width:980px; margin:0 auto; padding:20px 16px 80px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0}
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:grid; place-items:center; font-weight:800; color:white}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .btn{appearance:none; border:1px solid var(--border); background:#0b1220; color:#e5e7eb; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600}
+    .btn.primary{background:linear-gradient(135deg,var(--primary),var(--accent)); border:0}
+    .btn[disabled]{opacity:.6; cursor:not-allowed}
+    label{display:block; font-size:12px; color:#a3b3c7; margin-bottom:6px}
+    input,textarea,select{width:100%; padding:10px 12px; border-radius:12px; background:#0b1220; color:#e5e7eb; border:1px solid var(--border)}
+    input:focus,textarea:focus,select:focus{border-color:var(--ring); box-shadow:0 0 0 4px rgba(102,126,234,.15)}
+    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:12px}
+    .col-7{grid-column:span 7} .col-5{grid-column:span 5} .col-6{grid-column:span 6}
+    @media (max-width: 900px){ .col-7,.col-5,.col-6{grid-column:1/-1} }
+    .muted{color:#94a3b8}
+    .kpi{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px}
+    .tile{padding:14px; border:1px solid var(--border); border-radius:12px; background:#0b1220}
+    .error{border-color:#ef4444!important}
+    .small{font-size:12px}
+    dialog{border:1px solid var(--border); background:#0b1220; color:#e5e7eb; border-radius:16px; padding:16px; max-width:520px}
+    .note{font-size:12px;color:#9ca3af;margin-top:6px}
+    .toast{position:fixed; bottom:16px; right:16px; background:#111827; padding:12px 14px; border-radius:12px; border:1px solid rgba(148,163,184,.25); display:none}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">DP</div>
+        <div>
+          <div style="font-weight:700">AI 規劃助理</div>
+          <div class="muted small">輸入條件 → LLM 產生任務拆解與推薦模板。</div>
+        </div>
+      </div>
+      <div>
+        <button class="btn" onclick="openSettings()">LLM 設定</button>
+        <a class="btn" href="index.html">← 回 Dashboard</a>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="grid">
+        <div class="col-7">
+          <form id="f" onsubmit="return false;">
+            <div style="margin-bottom:10px">
+              <label>你的目標（一句話）<span class="muted">（必填）</span></label>
+              <input id="goal" required maxlength="160" placeholder="例：三個月內取得 TOEIC 金色證書">
+              <div class="note">建議 160 字內，越具體越好（含時間/量化）</div>
+            </div>
+            <div class="grid">
+              <div class="col-6">
+                <label>目標期限（YYYY-MM-DD）<span class="muted">（必填）</span></label>
+                <input id="deadline" type="date" required>
+              </div>
+              <div class="col-6">
+                <label>每週可投入時數</label>
+                <input id="hours" type="number" min="1" max="80" step="1" placeholder="例：10">
+              </div>
+            </div>
+            <div class="grid">
+              <div class="col-6">
+                <label>目前狀態</label>
+                <select id="stage">
+                  <option value="beginner">初學/剛起步</option>
+                  <option value="intermediate">有基礎</option>
+                  <option value="advanced">進階/衝刺</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label>偏好節奏</label>
+                <select id="pace">
+                  <option value="steady">穩定長跑</option>
+                  <option value="sprint">衝刺短期</option>
+                  <option value="balanced">平衡</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-bottom:10px">
+              <label>限制/風險（選填）</label>
+              <textarea id="constraints" rows="3" maxlength="500" placeholder="例：平日晚上 2 小時、週末易被打球約走、英文單字量不足"></textarea>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end">
+              <button id="btnHeu" class="btn" type="button" onclick="tryHeuristic()">離線試算</button>
+              <button id="btnAI" class="btn primary" type="button" onclick="runLLM()">用 AI 產生計畫</button>
+            </div>
+          </form>
+        </div>
+        <div class="col-5">
+          <div class="tile">
+            <div style="font-weight:700; margin-bottom:6px">推薦模板</div>
+            <div id="recTpl" class="muted small">尚未產生</div>
+            <div style="display:flex; justify-content:flex-end; margin-top:8px">
+              <a id="useTplBtn" class="btn" href="#" style="display:none">前往模板頁</a>
+            </div>
+          </div>
+          <div class="tile" style="margin-top:10px">
+            <div style="font-weight:700; margin-bottom:6px">規劃方向 / 風險</div>
+            <div id="planDir" class="small muted">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <div style="font-weight:700; margin-bottom:6px">拆解與排程</div>
+      <div class="kpi" id="kpi"></div>
+      <div id="tasks" style="margin-top:8px"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px">
+        <button class="btn" onclick="saveToApp()" id="saveBtn" style="display:none">一鍵寫入任務 & 前往 Dashboard</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <dialog id="dlg">
+    <form method="dialog">
+      <h3 style="margin:4px 0 10px">LLM 設定</h3>
+      <label>API Key（只保存在瀏覽器）</label>
+      <input id="apiKey" placeholder="sk-...">
+      <div class="grid" style="margin-top:6px">
+        <div class="col-6"><label>Provider</label>
+          <select id="provider">
+            <option value="openai">OpenAI</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">自定義</option>
+          </select>
+        </div>
+        <div class="col-6"><label>Model</label><input id="model" placeholder="gpt-4o-mini"></div>
+      </div>
+      <label style="margin-top:6px">自定義 Endpoint（選填）</label>
+      <input id="endpoint" placeholder="https://api.example.com/v1/chat/completions">
+      <div class="note">若使用 OpenAI / OpenRouter 可留白；自定義須相容 Chat Completions。</div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px">
+        <button class="btn" value="cancel">取消</button>
+        <button class="btn primary" value="ok" onclick="saveSettings()">儲存</button>
+      </div>
+    </form>
+  </dialog>
+
+<script>
+/* ---------- 工具與共用狀態 ---------- */
+const S = { plan:null, controller:null, timeoutId:null };
+const $ = (id)=> document.getElementById(id);
+const load = (k,f)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? f }catch(e){ return f } };
+const save = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+const todayISO = ()=> new Date().toISOString().slice(0,10);
+const uid = ()=> (crypto.randomUUID ? crypto.randomUUID() : Date.now()+"-"+Math.random().toString(16).slice(2));
+const escapeHTML = (s)=> (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+/* ---------- 設定對話框 ---------- */
+function openSettings(){
+  $('apiKey').value = localStorage.getItem('llm_api_key')||'';
+  $('model').value = localStorage.getItem('llm_model')||'gpt-4o-mini';
+  $('provider').value = localStorage.getItem('llm_provider')||'openai';
+  $('endpoint').value = localStorage.getItem('llm_endpoint')||'';
+  $('dlg').showModal();
+}
+function saveSettings(){
+  localStorage.setItem('llm_api_key', $('apiKey').value.trim());
+  localStorage.setItem('llm_model', ($('model').value.trim()||'gpt-4o-mini'));
+  localStorage.setItem('llm_provider', $('provider').value);
+  localStorage.setItem('llm_endpoint', $('endpoint').value.trim());
+}
+
+/* ---------- LLM 呼叫 ---------- */
+async function runLLM(){
+  const goal = val('goal'), deadline = val('deadline'), hours = boundInt(val('hours')||'6',1,80), stage=val('stage'), pace=val('pace'), constraints=val('constraints');
+  if(!goal || !deadline){ markErr('goal'); markErr('deadline'); return alert('請填寫目標與期限'); }
+  const payload = {goal:goal.slice(0,160), deadline, hours, stage, pace, constraints:constraints.slice(0,500)};
+  const schema = getSchema();
+
+  const system = `你是任務拆解與個人效率顧問。請輸出 JSON，符合以下 Schema。`;
+  const systemWithSchema = `${system}
+Schema:
+${JSON.stringify(schema)}`;
+
+  const user = `使用者條件：
+${JSON.stringify(payload, null, 2)}
+請評估風險、分期（最多 4 期）、推薦模板（smart/pomodoro/zeigarnik/mbo/eisenhower/parkinson/kaizen/gtd/okr/ifthen/woop/tmt/fogg/commit/nudge/deepwork/habit/kaizen_kanban/woop_pomodoro），並產生 8~20 個任務（含估時、優先級、到期日試算）。`;
+
+  const body = {
+    messages:[
+      { role:'system', content: systemWithSchema },
+      { role:'user', content: user }
+    ],
+    model: localStorage.getItem('llm_model')||'gpt-4o-mini',
+    temperature: 0.2,
+    response_format: { type:'json_object' }
+  };
+
+  // 防止重複觸發 + 超時/取消
+  setBusy(true);
+  S.controller = new AbortController();
+  S.timeoutId = setTimeout(()=> S.controller.abort('timeout'), 45000);
+
+  try{
+    const j = await callLLM(body, S.controller.signal);
+    handleLLM(j);
+  }catch(e){
+    console.error(e);
+    toast('AI 回覆失敗，改用離線試算');
+    tryHeuristic();
+  }finally{
+    clearTimeout(S.timeoutId); S.timeoutId=null; setBusy(false);
+  }
+}
+
+function getSchema(){
+  return {
+    type: 'object',
+    required: ['recommendations','plan_direction','phases','tasks','metrics','risks'],
+    properties: {
+      recommendations: { type: 'array', items: { type: 'string' } },
+      plan_direction:  { type: 'string' },
+      phases: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['name','outcome','milestones'],
+          properties: {
+            name:            { type: 'string' },
+            outcome:         { type: 'string' },
+            duration_weeks:  { type: 'number' },
+            milestones:      { type: 'array', items: { type: 'string' } }
+          }
+        }
+      },
+      tasks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['title','estimate_min'],
+          properties: {
+            title:        { type: 'string' },
+            estimate_min: { type: 'number' },
+            due_date:     { type: 'string' },
+            priority:     { type: 'string' },
+            phase:        { type: 'string' }
+          }
+        }
+      },
+      metrics: { type: 'array', items: { type: 'string' } },
+      risks:   { type: 'array', items: { type: 'string' } }
+    }
+  };
+}
+
+
+async function callLLM(body, signal){
+  const key = localStorage.getItem('llm_api_key');
+  const provider = localStorage.getItem('llm_provider')||'openai';
+  const endpointUrl = (localStorage.getItem('llm_endpoint')||'').trim()
+    || (provider==='openai' ? 'https://api.openai.com/v1/chat/completions'
+        : provider==='openrouter' ? 'https://openrouter.ai/api/v1/chat/completions'
+        : '');
+
+  if(!key || !endpointUrl) throw new Error('missing-llm-settings');
+
+  const r = await fetch(endpointUrl, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
+    body: JSON.stringify(body),
+    signal
+  });
+  if(!r.ok){
+    const t = await r.text().catch(()=>String(r.status));
+    throw new Error('LLM_ERROR:'+t);
+  }
+  const data = await r.json();
+
+  // 解析 content -> JSON；容錯：若模型回傳 ```json 區塊或前後多餘文字
+  let content = data?.choices?.[0]?.message?.content || '{}';
+  let jsonStr = content.trim();
+
+  // 擷取 ```json 區塊
+  const m = jsonStr.match(/```json\s*([\s\S]*?)```/i) || jsonStr.match(/```\s*([\s\S]*?)```/);
+  if(m) jsonStr = m[1];
+
+  // 進一步嘗試找到首尾花括號
+  const first = jsonStr.indexOf('{'); const last = jsonStr.lastIndexOf('}');
+  if(first!==-1 && last!==-1 && last>first) jsonStr = jsonStr.slice(first, last+1);
+
+  let parsed;
+  try{ parsed = JSON.parse(jsonStr); }
+  catch(e){ console.warn('Primary JSON.parse failed, fallback to heuristic'); throw new Error('bad-json'); }
+
+  return parsed;
+}
+
+/* ---------- 結果顯示 ---------- */
+function handleLLM(j){
+  if(!j || !Array.isArray(j.tasks)) throw new Error('invalid');
+
+  const rec = (j.recommendations||[])[0] || pickTemplateHeuristically();
+  showRecommendation(rec, j.plan_direction, j.risks||[]);
+  showPlan(j);
+  S.plan = { rec, j };
+  $('saveBtn').style.display='inline-block';
+}
+
+function showRecommendation(id, direction, risks){
+  $('recTpl').innerHTML = `<b>${escapeHTML(tplName(id))}</b><br><span class="muted small">ID：${escapeHTML(id)}</span>`;
+  const btn = $('useTplBtn'); btn.style.display='inline-block'; btn.href = `method-${id}.html`;
+
+  const riskList = (risks&&risks.length)
+    ? `<br><br><b>風險：</b><ul>${risks.map(x=>`<li>${escapeHTML(x)}</li>`).join('')}</ul>`
+    : '';
+  $('planDir').innerHTML = `${escapeHTML(direction||'—')}${riskList}`;
+}
+
+function showPlan(j){
+  const totalMin = (j.tasks||[]).reduce((a,b)=>a+(+b.estimate_min||0),0);
+  const perWeek = boundInt(val('hours')||'6',1,80);
+  const weeks = Math.max(1, Math.ceil(totalMin/60/perWeek));
+
+  $('kpi').innerHTML = [
+    tile('總任務', String(j.tasks.length)),
+    tile('總工時', Math.round(totalMin/60)+' 小時'),
+    tile('預估週數', String(weeks)+' 週'),
+    tile('追蹤指標', (j.metrics||[]).map(escapeHTML).join('、')||'—')
+  ].join('');
+
+  const items = (j.tasks||[]).map(t=>{
+    const title = escapeHTML(t.title);
+    const est = Number(t.estimate_min||0);
+    const pr = escapeHTML(t.priority||'M');
+    const due = t.due_date ? ` · 期限 ${escapeHTML(t.due_date)}` : '';
+    return `<li>【${pr}】${title} · ${est} 分${due}</li>`;
+  }).join('');
+
+  $('tasks').innerHTML = `<ol style="line-height:1.7; padding-left:18px">${items}</ol>`;
+}
+
+function tile(title, val){
+  return `<div class="tile"><div class="muted small">${escapeHTML(title)}</div><div style="font-weight:700; font-size:18px">${escapeHTML(String(val))}</div></div>`;
+}
+
+/* ---------- 寫入 App 資料模型 ---------- */
+function saveToApp(){
+  if(!S.plan) return alert('尚未產生計畫');
+  const s = load('dreampath', {goals:[],tasks:[],points:0,activeGoalId:null});
+  const rec = S.plan.rec, j = S.plan.j; const title = `${tplName(rec)} 計畫`;
+  const g = { id:uid(), title, deadline: val('deadline')||todayISO(), weekly_hours: boundInt(val('hours')||'6',1,80), status:'active', progress:0, notes:'AI: '+val('goal').slice(0,160), created_at:new Date().toISOString() };
+  const ts = (j.tasks||[]).slice(0,200).map(t=> ({
+    id:uid(),
+    goal_id:g.id,
+    title:String(t.title||'未命名任務').slice(0,140),
+    estimate_min: boundInt(t.estimate_min||30, 5, 600),
+    due_date: t.due_date || todayISO(),
+    status:'pending',
+    priority: (t.priority||'M').slice(0,6)
+  }));
+  if(!ts.some(t=>t.due_date===todayISO())) ts.unshift({id:uid(),goal_id:g.id,title:'啟動：花 15 分鐘啟動',type:'start',estimate_min:15,due_date:todayISO(),status:'pending'});
+  s.goals.push(g); s.tasks = s.tasks.concat(ts); s.activeGoalId=g.id; save('dreampath', s);
+
+  toast('已寫入任務並導向對應模板頁');
+  location.href = `method-${rec}.html`;
+}
+
+/* ---------- 離線試算（無 LLM） ---------- */
+function tryHeuristic(){
+  const rec = pickTemplateHeuristically();
+  const j = {
+    recommendations:[rec],
+    plan_direction:`依據每週 ${boundInt(val('hours')||'6',1,80)} 小時與「${val('pace')}」節奏，先用 ${tplName(rec)} 建立結構，再以番茄法切回合。`,
+    phases:[{name:'啟動',outcome:'定義與第一步',milestones:['定義 SMART','建立每週檢核'],duration_weeks:1}],
+    metrics:['每週工時','完成率','里程碑數'],
+    risks:['低估難度','中斷與分心'],
+    tasks: heuristicTasks()
+  };
+  handleLLM(j);
+}
+
+function pickTemplateHeuristically(){
+  const hours = boundInt(val('hours')||'6',1,80), pace=val('pace'), stage=val('stage');
+  if(pace==='sprint' || hours<=5) return 'pomodoro';
+  if(stage==='advanced') return 'okr';
+  if(stage==='beginner') return 'smart';
+  return 'gtd';
+}
+
+function heuristicTasks(){
+  const g = val('goal')||'我的目標';
+  const arr = [
+    {title:`定義 SMART：${g}`, estimate_min:30, priority:'H'},
+    {title:'拆解 3~5 個里程碑', estimate_min:40, priority:'H'},
+    {title:'建立每週檢核（行事曆）', estimate_min:10, priority:'M'},
+    {title:'準備番茄清單（今日 3 顆）', estimate_min:15, priority:'M'},
+    {title:'番茄 #1', estimate_min:25, priority:'M'},
+    {title:'番茄 #2', estimate_min:25, priority:'M'},
+    {title:'番茄 #3', estimate_min:25, priority:'M'}
+  ];
+  const ddl = val('deadline');
+  if(ddl){ const iso=new Date(ddl).toISOString().slice(0,10); arr.forEach((t,i)=> t.due_date=(i<3? todayISO(): iso)); }
+  return arr;
+}
+
+/* ---------- 小工具 ---------- */
+function tplName(id){
+  const map = {
+    smart:'SMART 目標', pomodoro:'番茄工作法', zeigarnik:'Zeigarnik', mbo:'MBO', eisenhower:'艾森豪矩陣',
+    parkinson:'帕金森法則', kaizen:'Kaizen 改善', gtd:'GTD', okr:'OKR', ifthen:'If-Then',
+    woop:'WOOP/MCII', tmt:'TMT', fogg:'Fogg 模型', commit:'承諾裝置', nudge:'助推',
+    deepwork:'深度工作', habit:'習慣形成', kaizen_kanban:'Kaizen×看板', woop_pomodoro:'WOOP×番茄'
+  };
+  return map[id]||id;
+}
+function val(id){ return ($(id).value||'').trim(); }
+function markErr(id){ const el=$(id); el.classList.add('error'); setTimeout(()=>el.classList.remove('error'), 1500); }
+function boundInt(x,min,max){ const n=parseInt(x,10); if(isNaN(n)) return min; return Math.min(max, Math.max(min,n)); }
+function setBusy(b){
+  $('btnAI').disabled=b; $('btnHeu').disabled=b;
+}
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none', 2500);
+}
+</script>
+</body>
+</html>
